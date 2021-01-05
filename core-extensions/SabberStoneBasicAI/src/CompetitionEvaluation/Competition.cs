@@ -240,8 +240,12 @@ namespace SabberStoneBasicAI.CompetitionEvaluation
 
 				for (int i = 0; i < agents.Length; i++)
 				{
-					for (int j = i + 1; j < agents.Length; j++)
+					for (int j = 0; j < agents.Length; j++)
 					{
+						if(i == j)
+						{
+							continue;
+						}
 						for (int deck_i = 0; deck_i < decks.Length; deck_i++)
 							for (int deck_j = 0; deck_j < decks.Length; deck_j++)
 								if (results[i, j, deck_i, deck_j] != null)

@@ -43,9 +43,9 @@ namespace SabberStoneBasicAI
 			//OneTurn();
 			//FullGame();
 			//RandomGames();
-			TestPOGame();
+			//TestPOGame();
 			//TestFullGames();
-			//TestTournament();
+			TestTournament();
 
 			Console.WriteLine("Test ended!");
 			Console.ReadLine();
@@ -54,8 +54,8 @@ namespace SabberStoneBasicAI
 		public static void TestTournament()
 		{
 			Agent[] agents = new Agent[2];
-			agents[0] = new Agent(typeof(RandomAgent), "Random Agent");
-			agents[1] = new Agent(typeof(GreedyAgent), "Greedy Agent");
+			agents[0] = new Agent(typeof(GreedyAgent), "Greedy Agent");
+			agents[1] = new Agent(typeof(RandomAgent), "Random Agent");
 			//agents[2] = new Agent(typeof(DynamicLookaheadAgent), "Dynamic Lookahead Agent");
 			//agents[3] = new Agent(typeof(BeamSearchAgent), "Beam Search Agent");
 
@@ -65,7 +65,7 @@ namespace SabberStoneBasicAI
 			decks[2] = new CompetitionEvaluation.Deck(Decks.MidrangeJadeShaman, CardClass.SHAMAN, "Shaman");
 
 			RoundRobinCompetition competition = new RoundRobinCompetition(agents, decks, "results.txt");
-			competition.CreateTasks(40);
+			competition.CreateTasks(15);
 			competition.startEvaluation(8);
 
 			Console.WriteLine("Total Games Played: " + competition.GetTotalGamesPlayed());
@@ -293,10 +293,10 @@ namespace SabberStoneBasicAI
 				new GameConfig()
 				{
 					StartPlayer = 1,
-					Player1Name = "FitzVonGerald",
+					Player1Name = "YiLingShu",
 					Player1HeroClass = CardClass.MAGE,
 					Player1Deck = Decks.RenoKazakusMage,
-					Player2Name = "RehHausZuckFuchs",
+					Player2Name = "GouZei",
 					Player2HeroClass = CardClass.MAGE,
 					Player2Deck = Decks.RenoKazakusMage,
 					FillDecks = false,
@@ -338,6 +338,7 @@ namespace SabberStoneBasicAI
 					{
 						Console.WriteLine(task.FullPrint());
 						game.Process(task);
+						break;
 						if (game.CurrentPlayer.Choice != null)
 						{
 							Console.WriteLine($"* Recalculating due to a final solution ...");
