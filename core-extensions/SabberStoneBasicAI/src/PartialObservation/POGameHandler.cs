@@ -81,7 +81,7 @@ namespace SabberStoneBasicAI.PartialObservation
 				while (game.State != State.COMPLETE && game.State != State.INVALID)
 				{
 					if (debug)
-						//Console.WriteLine("Turn " + game.Turn);
+						Console.WriteLine("Turn " + game.Turn);
 					if (printGame)
 					{
 						//Console.WriteLine(MCGS.SabberHelper.SabberUtils.PrintGame(game));
