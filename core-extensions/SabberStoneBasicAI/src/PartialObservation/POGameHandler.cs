@@ -6,6 +6,9 @@ using SabberStoneCore.Model.Entities;
 using SabberStoneBasicAI.AIAgents;
 using SabberStoneCore.Tasks.PlayerTasks;
 using System.Collections.Generic;
+using SabberStoneCore.Model;
+using System.IO;
+using System.Text;
 
 namespace SabberStoneBasicAI.PartialObservation
 {
@@ -133,7 +136,8 @@ namespace SabberStoneBasicAI.PartialObservation
 				gameStats.addGame(game, watches);
 
 			player1.FinalizeGame();
-			player2.FinalizeGame();
+			player2.FinalizeGame(); 
+			ShowLog(game, LogLevel.INFO);
 			return true;
 		}
 
@@ -154,6 +158,55 @@ namespace SabberStoneBasicAI.PartialObservation
 		{
 			return gameStats;
 		}
+
+
+		internal static void ShowLog(Game game, LogLevel level)
+		{
+			var str = new StringBuilder();
+			while (game.Logs.Count > 0)
+			{
+				LogEntry logEntry = game.Logs.Dequeue();
+				if (logEntry.Level <= level)
+				{
+					ConsoleColor foreground = ConsoleColor.White;
+					switch (logEntry.Level)
+					{
+						case LogLevel.DUMP:
+							foreground = ConsoleColor.DarkCyan;
+							break;
+						case LogLevel.ERROR:
+							foreground = ConsoleColor.Red;
+							break;
+						case LogLevel.WARNING:
+							foreground = ConsoleColor.DarkRed;
+							break;
+						case LogLevel.INFO:
+							foreground = logEntry.Location.Equals("Game") ? ConsoleColor.Yellow :
+										 logEntry.Location.StartsWith("Quest") ? ConsoleColor.Cyan :
+										 ConsoleColor.Green;
+							break;
+						case LogLevel.VERBOSE:
+							foreground = ConsoleColor.DarkGreen;
+							break;
+						case LogLevel.DEBUG:
+							foreground = ConsoleColor.DarkGray;
+							break;
+						default:
+							throw new ArgumentOutOfRangeException();
+					}
+
+					Console.ForegroundColor = foreground;
+
+					string logStr = logEntry.ToString();
+					str.Append(logStr + "\n");
+					Console.WriteLine(logStr);
+				}
+			}
+			Console.ResetColor();
+
+			File.WriteAllText(Directory.GetCurrentDirectory() + @"\dump.log", str.ToString());
+		}
+
 	}
 
 }
