@@ -43,9 +43,9 @@ namespace SabberStoneBasicAI
 			//OneTurn();
 			//FullGame();
 			//RandomGames();
-			//TestPOGame();
+			TestPOGame();
 			//TestFullGames();
-			TestTournament();
+			//TestTournament();
 
 			Console.WriteLine("Test ended!");
 			Console.ReadLine();
@@ -79,16 +79,17 @@ namespace SabberStoneBasicAI
 			var gameConfig = new GameConfig()
 			{
 				StartPlayer = 1,
-				Player1HeroClass = CardClass.MAGE,
-				Player2HeroClass = CardClass.MAGE,
-				Player1Deck = Decks.RenoKazakusMage,
-				Player2Deck = Decks.RenoKazakusMage,
+				Player1HeroClass = CardClass.WARRIOR,
+				Player2HeroClass = CardClass.WARLOCK,
+				Player1Deck = Decks.AggroPirateWarrior,
+				Player2Deck = Decks.ZooLock,
 				FillDecks = false,
 				Shuffle = true,
 				Logging = true
 			};
 
 			Console.WriteLine("Setup POGameHandler");
+			//AbstractAgent player1 = new AIAgents.BetaStone.BetaStone();
 			AbstractAgent player1 = new GreedyAgent();
 			AbstractAgent player2 = new GreedyAgent();
 			var gameHandler = new POGameHandler(gameConfig, player1, player2, repeatDraws: false);

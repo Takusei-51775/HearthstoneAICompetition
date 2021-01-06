@@ -33,7 +33,7 @@ namespace SabberStoneBasicAI.AIAgents.Dog
 			MCTSNode realGame = new MCTSNode(null, null, poGame, null);
 			Expansion(realGame);
 
-
+			return null;
 
 		}
 
@@ -62,7 +62,8 @@ namespace SabberStoneBasicAI.AIAgents.Dog
 			node.Children = simulations.Select((x => new MCTSNode(node, null, x.Value, x.Key))).ToList();
 
 			// Choose a new children???? UCB
-		
+
+			return null;
 			
 		}
 
@@ -73,7 +74,7 @@ namespace SabberStoneBasicAI.AIAgents.Dog
 				Console.WriteLine("ERROR: UCB on a node with no children!");
 				return UCBChoice(Expansion(node));
 			}
-
+			return null;
 		}
 
 

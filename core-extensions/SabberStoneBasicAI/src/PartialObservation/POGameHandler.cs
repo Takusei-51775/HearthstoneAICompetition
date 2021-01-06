@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq;
 using System.Diagnostics;
 using SabberStoneCore.Config;
 using SabberStoneCore.Enums;
@@ -25,6 +26,9 @@ namespace SabberStoneBasicAI.PartialObservation
 		private bool repeatDraws = false;
 		private int maxTurns = 50;
 
+		private List<int> turnsRecords = new List<int>();
+
+		private Queue<List<double>> trainingData = new Queue<List<double>>();
 
 		public POGameHandler(GameConfig gameConfig, AbstractAgent player1, AbstractAgent player2, bool setupHeroes = true, bool repeatDraws = false)
 		{
@@ -52,6 +56,7 @@ namespace SabberStoneBasicAI.PartialObservation
 			PlayerTask playertask = null;
 			Stopwatch[] watches = new[] { new Stopwatch(), new Stopwatch() };
 			bool printGame = false;
+			int numturns = 0;
 
 			game.StartGame();
 			if (gameConfig.SkipMulligan == false)
@@ -80,8 +85,18 @@ namespace SabberStoneBasicAI.PartialObservation
 #endif
 				while (game.State != State.COMPLETE && game.State != State.INVALID)
 				{
-					if (debug)
-						Console.WriteLine("Turn " + game.Turn);
+					//if (debug)
+					numturns = game.Turn;
+					//Console.WriteLine("Turn " + game.Turn); 
+
+
+					if(game.Turn == 15)
+					{
+						OutputCurrentGameForTrainingData(game);
+					}
+					//ShowLog(game, LogLevel.INFO);
+
+
 					if (printGame)
 					{
 						//Console.WriteLine(MCGS.SabberHelper.SabberUtils.PrintGame(game));
@@ -138,6 +153,7 @@ namespace SabberStoneBasicAI.PartialObservation
 			player1.FinalizeGame();
 			player2.FinalizeGame();
 
+			turnsRecords.Add(numturns);
 			//ShowLog(game, LogLevel.INFO);
 
 			return true;
@@ -154,6 +170,17 @@ namespace SabberStoneBasicAI.PartialObservation
 								//pb.Update(i);
 								//Console.WriteLine("play game " + i + " out of " + nr_of_games);
 			}
+			double averageTurns = 0.0;
+			foreach(int turns in turnsRecords)
+			{
+				averageTurns += turns;
+			}
+			averageTurns /= turnsRecords.Count;
+			turnsRecords = turnsRecords.OrderBy((x => x)).ToList();
+			Console.WriteLine("Average Turns: " + averageTurns);
+			Console.WriteLine("20% Turns: " + turnsRecords[turnsRecords.Count/5]);
+			Console.WriteLine("80% Turns: " + turnsRecords[turnsRecords.Count*4/5]);
+			PrintTrainingData();
 		}
 
 		public GameStats getGameStats()
@@ -209,6 +236,34 @@ namespace SabberStoneBasicAI.PartialObservation
 			File.WriteAllText(Directory.GetCurrentDirectory() + @"\dump.log", str.ToString());
 		}
 
+
+		public void OutputCurrentGameForTrainingData(Game game)
+		{
+			List<double> features = new List<double>();
+			features.Add(game.Turn);
+			features.Add(game.CurrentPlayer.Hero.Health);
+			features.Add(game.CurrentOpponent.Hero.Health);
+			trainingData.Enqueue(features);
+		}
+
+		public void PrintTrainingData()
+		{
+			StringBuilder sb = new StringBuilder();
+			while(trainingData.Count > 0)
+			{
+				List<double> data = trainingData.Dequeue();
+				for (int i = 0; i < data.Count; i++)
+				{
+					sb.Append(data[i].ToString());
+					if(i != data.Count - 1)
+					{
+						sb.Append(", ");
+					}
+				}
+				sb.Append("\n");
+			}
+			File.WriteAllText(Directory.GetCurrentDirectory() + @"\trainingData.txt", sb.ToString());
+		}
 	}
 
 }

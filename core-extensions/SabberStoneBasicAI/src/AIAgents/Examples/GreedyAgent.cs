@@ -43,7 +43,8 @@ namespace SabberStoneBasicAI.AIAgents
 			var p = state.CurrentPlayer.PlayerId == playerId ? state.CurrentPlayer : state.CurrentOpponent;
 			switch (state.CurrentPlayer.HeroClass)
 			{
-				case CardClass.WARRIOR: return new AggroScore { Controller = p }.Rate();
+				case CardClass.WARRIOR: return new RampScore { Controller = p }.Rate();
+				case CardClass.WARLOCK: return new RampScore { Controller = p }.Rate();
 				case CardClass.MAGE: return new ControlScore { Controller = p }.Rate();
 				default: return new RampScore { Controller = p }.Rate();
 			}

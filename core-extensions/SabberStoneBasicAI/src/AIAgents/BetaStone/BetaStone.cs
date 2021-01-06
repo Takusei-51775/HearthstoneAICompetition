@@ -18,7 +18,7 @@ namespace SabberStoneBasicAI.AIAgents.BetaStone
 
 		public bool myDebug = false;
 		public bool mcts = true;
-		public int numSimulations = 100;
+		public int numSimulations = 1000;
 
 
 		//public static Dictionary<CardClass, List<Card>> classDeckDict = new Dictionary<CardClass, List<Card>>
@@ -177,11 +177,15 @@ namespace SabberStoneBasicAI.AIAgents.BetaStone
 		public PlayerTask MCTS(POGame state)
 		{
 			Controller player = state.CurrentPlayer;
+			if(state.CurrentPlayer.Options().Count == 1)
+			{
+				return state.CurrentPlayer.Options()[0];
+			}
 			var timer = Stopwatch.StartNew();
 			Node rootNode = new Node(parentNode: null, gameState: new KeyValuePair<PlayerTask, POGame>(null, state));
 
 			// Do as long as we've got time
-			while (timer.ElapsedMilliseconds < 10000 && rootNode.N < numSimulations)
+			while (/*timer.ElapsedMilliseconds < 10000 &&*/ rootNode.N < numSimulations)
 			{
 
 				//Selection
@@ -243,11 +247,17 @@ namespace SabberStoneBasicAI.AIAgents.BetaStone
 				var legalMoves = state.Simulate(moves).Where(x => x.Value != null).ToList();
 				bestMove = legalMoves.OrderBy(x => Score(x.Value, state.CurrentPlayer.PlayerId)).Last();
 				state = bestMove.Value;
-			} while (bestMove.Key.PlayerTaskType != PlayerTaskType.END_TURN);
+			} while (bestMove.Key.PlayerTaskType != PlayerTaskType.END_TURN && !isFinishedMove(bestMove));
 
 			int result = Reward(state, player.PlayerId, terminalIsEOT: true);
 
 			return result;
+		}
+
+		public bool isFinishedMove(KeyValuePair<PlayerTask, POGame> move)
+		{
+			return move.Value.Heroes[0].Damage >= (move.Value.Heroes[0].Health + move.Value.Heroes[0].Armor) ||
+				   move.Value.Heroes[1].Damage >= (move.Value.Heroes[1].Health + move.Value.Heroes[1].Armor);
 		}
 
 		public void Backpropagate(Node current, int reward)
