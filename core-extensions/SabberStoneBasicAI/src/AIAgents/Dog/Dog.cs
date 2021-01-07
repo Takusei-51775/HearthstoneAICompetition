@@ -4,6 +4,11 @@ using System.Collections.Generic;
 using SabberStoneCore.Tasks.PlayerTasks;
 using SabberStoneBasicAI.PartialObservation;
 using SabberStoneCore.Model.Entities;
+using SabberStoneCore.Model.Zones;
+using SabberStoneCore.Model;
+using SabberStoneCore.Enums;
+using System.Net.Sockets;
+using System.Net;
 
 namespace SabberStoneBasicAI.AIAgents.Dog
 {
@@ -11,12 +16,48 @@ namespace SabberStoneBasicAI.AIAgents.Dog
 	{
 		public Random Rnd = new Random();
 		private Controller controller = null;
-		private string rolloutPolicy = new string("epsilon-greedy");
+		private string rolloutPolicy = "epsilon-greedy";
 
-		private const int NUM_ITERATIONS = 100;
+		public const int NUM_ITERATIONS = 500;
 		private const double EPSILON = 0.05;
+		public static double ConstantForUCT = 0.0;
+		public static Socket NNSocket = null;
+		private static string server = "www.baidu.com";
+		private int port = 114514;
+		private int[] features = new int[163];
+		private byte[] dataBuffer = new byte[163 * 4];
+		private byte[] receiveBuffer = new byte[4];
+
+		private const bool SOCKET_EVAL = true;
+
 		public override void InitializeAgent()
 		{
+			ConstantForUCT = 1.0 / Math.Sqrt(Math.Log(Dog.NUM_ITERATIONS));
+
+			IPHostEntry hostEntry = null;
+
+			hostEntry = Dns.GetHostEntry(server);
+
+			foreach (IPAddress address in hostEntry.AddressList)
+			{
+				IPEndPoint ipe = new IPEndPoint(address, port);
+				Socket tempSocket = new Socket(ipe.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
+
+				tempSocket.Connect(ipe);
+
+				if (tempSocket.Connected)
+				{
+					NNSocket = tempSocket;
+					break;
+				} else
+				{
+					continue;
+				}
+			}
+			if(NNSocket == null)
+			{
+				Console.WriteLine("ERROR: Socket not connected!");
+			}
 		}
 
 		public override void FinalizeAgent()
@@ -39,19 +80,28 @@ namespace SabberStoneBasicAI.AIAgents.Dog
 			}
 
 			List<PlayerTask> options = poGame.CurrentPlayer.Options();
-
+			if(options.Count == 1)
+			{
+				return options[0];
+			}
 
 			// For now the MCTS does not have memory.
 			// It Creates a new MCTS node, simulates, and deletes it.
 			MCTSNode realGame = new MCTSNode(null, null, poGame, null);
 
-			Expansion(realGame);
+			while(realGame.N < NUM_ITERATIONS)
+			{
+				MCTSNode node = Select(realGame);
+				node = Expand(node);
+				double rolloutY6 = Rollout(node);
+				BackPropagate(node, rolloutY6);
+			}
 
-			return null;
+			return realGame.Children.OrderBy(x => x.Y6()).Last().Action;
 
 		}
 
-		public MCTSNode Selection(MCTSNode node)
+		public MCTSNode Select(MCTSNode node)
 		{
 			MCTSNode currNode = node;
 			while(currNode.Children != null && currNode.Children.Count > 0)
@@ -61,7 +111,7 @@ namespace SabberStoneBasicAI.AIAgents.Dog
 			return currNode;
 		}
 
-		public MCTSNode Expansion(MCTSNode node)
+		public MCTSNode Expand(MCTSNode node)
 		{
 			if(node.Children != null)
 			{
@@ -83,9 +133,16 @@ namespace SabberStoneBasicAI.AIAgents.Dog
 			}
 
 			// Simulate all options except END_TURN.
-			var simulations = node.State.Simulate(node.State.CurrentPlayer.Options().Where(x => x.PlayerTaskType != PlayerTaskType.END_TURN).ToList()).Where((x => x.Value != null));
+			var simulations = node.State.Simulate(node.State.CurrentPlayer.Options().Where(x => x.PlayerTaskType != PlayerTaskType.END_TURN).ToList()).Where((x => x.Value != null)).ToList();
+
+			if(simulations.Count == 0)
+			{
+				return node;
+			}
 
 			node.Children = simulations.Select((x => new MCTSNode(node, null, x.Value, x.Key))).ToList();
+
+			//Add endturn as child
 
 			// Choose a new child to start rollout.
 			// In MC, We can do so randomly, 
@@ -93,67 +150,147 @@ namespace SabberStoneBasicAI.AIAgents.Dog
 			return node.Children[Rnd.Next(0, node.Children.Count)];
 		}
 
-		public double rollout(MCTSNode node)
+		public double Rollout(MCTSNode node)
 		{
-			MCTSNode currNode = node;
 			POGame currGame = node.State;
-			// Early stop if the only option is END_TURN
-			List<PlayerTask> options = currNode.State.CurrentPlayer.Options();
-			while(options.Count > 1)
+			List<PlayerTask> options = currGame.CurrentPlayer.Options();
+
+			// Stop if the only option is END_TURN
+			while (options.Count > 1)
 			{
 				if (rolloutPolicy.Equals(new string("epsilon-greedy")))
 				{
-					if(Rnd.NextDouble() < EPSILON)
+					if (Rnd.NextDouble() < EPSILON)
 					{
-						PlayerTask task = options[Rnd.Next(0, options.Count)];
-						// If task chosen is END_TURN, do not simulate.
-						if(task.PlayerTaskType == PlayerTaskType.END_TURN)
+						POGame nextGame = null;
+						do
+						{
+							PlayerTask task = options[Rnd.Next(0, options.Count)];
+							// If task chosen is END_TURN, do not simulate.
+							if (task.PlayerTaskType == PlayerTaskType.END_TURN)
+							{
+								return Evaluate(currGame);
+							} else
+							// Else, simulate the random task.
+							{
+								var listedTask = new List<PlayerTask>();
+								listedTask.Add(task);
+								nextGame = currGame.Simulate(listedTask).ToList()[0].Value;
+							}
+						} while (nextGame == null);
+						currGame = nextGame;
+					} else
+					{
+						// Do not simulate END_TURN,
+						var simulations =
+							currGame.Simulate(options.Where(x => x.PlayerTaskType != PlayerTaskType.END_TURN).ToList()).Where(x => x.Value != null).ToList();
+						//var nextStates = simulations.Select(x => x.Value).ToList();
+
+						// rather, add it into next states.
+						//nextStates.Add(currGame);
+
+
+						if (simulations.Count == 0)
 						{
 							break;
+						}
+
+						//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+						var greedyActionChoice = simulations.OrderBy(x => Evaluate(x.Value)).Last();
+
+						// If END_TURN is a better choice
+						double endTurnValue = Evaluate(currGame);
+						if (endTurnValue >= Evaluate(greedyActionChoice.Value))
+						{
+							return endTurnValue;
 						} else
 						{
-							// Do not simulate END_TURN,
-							Dictionary<PlayerTask, POGame> simulations = 
-								currNode.State.Simulate(options.Where(x => x.PlayerTaskType != PlayerTaskType.END_TURN).ToList());
-							var nextStates = simulations.Select(x => x.Value).ToList();
-
-							// rather, add it into next states.
-							nextStates.Add(currNode.State);
-							//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-							currNode = nextStates.OrderBy(x => Evaluate(x)).Last();
-
+							currGame = greedyActionChoice.Value;
 						}
+						
+
 					}
-				} else if(rolloutPolicy.Equals(new string("greedy")))
+				} 
+				else if(rolloutPolicy.Equals(new string("greedy")))
 				{
+					// Do not simulate END_TURN,
+					Dictionary<PlayerTask, POGame> simulations =
+						currGame.Simulate(options.Where(x => x.PlayerTaskType != PlayerTaskType.END_TURN).ToList());
 
-				} else if(rolloutPolicy.Equals(new string("random")))
+					if(simulations.Count == 0)
+					{
+						break;
+					}
+
+					//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+					var greedyActionChoice = simulations.OrderBy(x => Evaluate(x.Value)).Last();
+
+					// If END_TURN is a better choice
+					double endTurnValue = Evaluate(currGame);
+					if (endTurnValue >= Evaluate(greedyActionChoice.Value))
+					{
+						return endTurnValue;
+					} else
+					{
+						currGame = greedyActionChoice.Value;
+					}
+
+				} 
+				else if(rolloutPolicy.Equals(new string("random")))
 				{
+					POGame nextGame = null;
+					do
+					{
+						PlayerTask task = options[Rnd.Next(0, options.Count)];
 
+						// If task chosen is END_TURN, do not simulate.
+						if (task.PlayerTaskType == PlayerTaskType.END_TURN)
+						{
+							return Evaluate(currGame);
+						} else
+						// Else, simulate the random task.
+						{
+							var listedTask = new List<PlayerTask>();
+							listedTask.Add(task);
+							nextGame = currGame.Simulate(listedTask).ToList()[0].Value;
+						}
+					} while (nextGame == null);
+					currGame = nextGame;
 				} else
 				{
-
+					Console.WriteLine("INVALID ROLLOUT POLICY");
+					return 0.0;
 				}
-				//!!!!!!!!!!!!!!!!!!!!!!!!!!
-				options = currNode.State.CurrentPlayer.Options();
-			}
 
-			return 0.0;
+				// Safety check: current game is played by Dog Agent. 
+				if(!currGame.CurrentPlayer.Name.Equals(controller.Name))
+				{
+					Console.WriteLine("ERROR: in rollout: Current player is opponent!");
+				}
+				options = currGame.CurrentPlayer.Options();
+			}
+			return Evaluate(currGame);
 		}
 
-		//public MCTSNode UCBChoice(MCTSNode node)
-		//{
-		//	if (node.Children == null)
-		//	{
-		//		Console.WriteLine("ERROR: UCB on a node with no children!");
-		//		return UCBChoice(Expansion(node));
-		//	}
-		//	return null;
-		//}
+		public void BackPropagate(MCTSNode terminalNode, double rolloutY6)
+		{
+			MCTSNode currNode = terminalNode;
+			while(currNode != null)
+			{
+				currNode.N++;
+				currNode.T += rolloutY6;
+				currNode = currNode.Parent;
+			}
+		}
 
 		public double Evaluate(POGame state)
 		{
-			if(state.CurrentPlayer != controller)
+			if(SOCKET_EVAL && NNSocket != null)
+			{
+				return (double)SocketEvaluate(state.getGame());
+			}
+
+			if(!state.CurrentPlayer.Name.Equals(controller.Name))
 			{
 				Console.WriteLine("ERROR: Evaluating opponent's state!");
 				return new DogZooLockScore { Controller = state.CurrentOpponent }.Evaluate();
@@ -161,6 +298,112 @@ namespace SabberStoneBasicAI.AIAgents.Dog
 			return new DogZooLockScore { Controller = state.CurrentPlayer }.Evaluate();
 		}
 
+
+		public float SocketEvaluate(Game game)
+		{
+			//int[] features = new int[163];
+			int count = 0;
+			HandZone Hand = game.CurrentPlayer.HandZone;
+			BoardZone BoardZone = game.CurrentPlayer.BoardZone;
+			BoardZone OpBoardZone = game.CurrentPlayer.Opponent.BoardZone;
+			Minion[] minions = BoardZone.GetAll();
+			features[count++] = (game.Turn);
+			features[count++] = (game.CurrentPlayer.HeroId);
+			features[count++] = (game.CurrentPlayer.Hero.Health);
+			features[count++] = (game.CurrentPlayer.BaseMana);
+			features[count++] = (game.CurrentPlayer.HandZone.Count);
+			features[count++] = (game.CurrentPlayer.DeckZone.Count);
+			features[count++] = (game.CurrentPlayer.BoardZone.Count);
+			for (int i = 0; i < game.CurrentPlayer.HandZone.Count; i++)
+			{
+				features[count++] = (game.CurrentPlayer.HandZone[i].Card.AssetId);
+			}
+			for (int i = 0; i < 10 - game.CurrentPlayer.HandZone.Count; i++)
+			{
+				features[count++] = (0);
+			}
+			foreach (Minion minion in minions)
+			{
+				features[count++] = (minion.Card.AssetId);
+				features[count++] = (minion[GameTag.ATK]);
+				features[count++] = (minion[GameTag.HEALTH]);
+				features[count++] = (minion[GameTag.DAMAGE]);
+				features[count++] = (minion[GameTag.STEALTH]);
+				features[count++] = (minion[GameTag.IMMUNE]);
+				features[count++] = (minion[GameTag.TAUNT]);
+				features[count++] = (minion[GameTag.CANT_BE_TARGETED_BY_SPELLS]);
+				features[count++] = (minion[GameTag.NUM_ATTACKS_THIS_TURN]);
+				features[count++] = (minion.Card.AssetId);
+			}
+			for (int _ = 0; _ < 7 - minions.Length; _++)
+			{
+				features[count++] = (0);
+				features[count++] = (0);
+				features[count++] = (0);
+				features[count++] = (0);
+				features[count++] = (0);
+				features[count++] = (0);
+				features[count++] = (0);
+				features[count++] = (0);
+				features[count++] = (0);
+				features[count++] = (0);
+			}
+			features[count++] = (game.CurrentOpponent.HeroId);
+			features[count++] = (game.CurrentOpponent.Hero.Health);
+			features[count++] = (game.CurrentOpponent.BaseMana);
+			features[count++] = (game.CurrentOpponent.HandZone.Count);
+			features[count++] = (game.CurrentOpponent.DeckZone.Count);
+			features[count++] = (game.CurrentOpponent.BoardZone.Count);
+			minions = OpBoardZone.GetAll();
+			foreach (Minion minion in minions)
+			{
+				features[count++] = (minion.Card.AssetId);
+				features[count++] = (minion[GameTag.ATK]);
+				features[count++] = (minion[GameTag.HEALTH]);
+				features[count++] = (minion[GameTag.DAMAGE]);
+				features[count++] = (minion[GameTag.STEALTH]);
+				features[count++] = (minion[GameTag.IMMUNE]);
+				features[count++] = (minion[GameTag.TAUNT]);
+				features[count++] = (minion[GameTag.CANT_BE_TARGETED_BY_SPELLS]);
+				features[count++] = (minion[GameTag.NUM_ATTACKS_THIS_TURN]);
+				features[count++] = (minion.Card.AssetId);
+			}
+			for (int _ = 0; _ < 7 - minions.Length; _++)
+			{
+				features[count++] = (0);
+				features[count++] = (0);
+				features[count++] = (0);
+				features[count++] = (0);
+				features[count++] = (0);
+				features[count++] = (0);
+				features[count++] = (0);
+				features[count++] = (0);
+				features[count++] = (0);
+				features[count++] = (0);
+			}
+			
+			// Safety check
+			if(count != 163)
+			{
+				Console.WriteLine("ERROR: Incorrect parameter size!");
+			}
+
+			for(int i = 0; i < features.Length; i++)
+			{
+				byte[] tmpBytes = BitConverter.GetBytes(features[i]);
+				dataBuffer[4 * i + 0] = tmpBytes[0];
+				dataBuffer[4 * i + 1] = tmpBytes[1];
+				dataBuffer[4 * i + 2] = tmpBytes[2];
+				dataBuffer[4 * i + 3] = tmpBytes[3];
+			}
+
+			NNSocket.Send(dataBuffer);
+
+			NNSocket.Receive(receiveBuffer, 4, SocketFlags.None);
+
+			return BitConverter.ToSingle(receiveBuffer);
+
+		}
 	}
 
 	class MCTSNode
@@ -178,9 +421,10 @@ namespace SabberStoneBasicAI.AIAgents.Dog
 		public PlayerTask Action { get => action; set => action = value; }
 
 
-		private const double VALUE_FOR_UNEXPLORED_STATE = 0;
+		private const double VALUE_FOR_UNEXPLORED_STATE = 1;
+
 		public int N = 0; 
-		public int T = 0;
+		public double T = 0;
 
 		public MCTSNode() { }
 		public MCTSNode(MCTSNode parent, List<MCTSNode> children, POGame state, PlayerTask action)
@@ -199,9 +443,9 @@ namespace SabberStoneBasicAI.AIAgents.Dog
 		public double UCTY6()
 		{
 			if (Parent == null) return Y6();
-			return N == 0 ? VALUE_FOR_UNEXPLORED_STATE : T / N + Math.Sqrt(2 * Math.Log(Parent.N) / N);
+			return N == 0 ? VALUE_FOR_UNEXPLORED_STATE : T / N + Dog.ConstantForUCT * Math.Sqrt(Math.Log(Parent.N) / N);
 		}
-		public double Y6() { return N == 0 ? VALUE_FOR_UNEXPLORED_STATE : T / N; }
+		public double Y6() { return N == 0 ? 0 : T / N; }
 
 	}
 
@@ -225,13 +469,15 @@ namespace SabberStoneBasicAI.AIAgents.Dog
 				result += 0.25;
 
 			if (OpMinionTotHealthTaunt > 0)
-				result += OpMinionTotHealthTaunt / 30;
+				result += OpMinionTotHealthTaunt / 30.0;
 
-			result += MinionTotAtk / 50;
+			result += (double)MinionTotAtk / 50.0;
 
-			result += (30 - OpHeroHp) / 30;
+			result -= (double)OpMinionTotAtk / 40.0;
 
-			result -= (30 - HeroHp) / 90;
+			result += (30 - OpHeroHp) / 60.0;
+
+			result -= (30 - HeroHp) / 90.0;
 
 			result = Math.Clamp(result, -1.0, 1.0);
 

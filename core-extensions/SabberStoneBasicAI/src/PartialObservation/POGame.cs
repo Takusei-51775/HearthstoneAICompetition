@@ -25,14 +25,14 @@ namespace SabberStoneBasicAI.PartialObservation
 			this.game = game.Clone();
 			game.Player1.Game = game;
 			game.Player2.Game = game;
-			if (prevGame != null)
-			{
-				hideAdditionalCards(prevGame);
-			}
-			else
-			{
+			//if (prevGame != null)
+			//{
+			//	hideAdditionalCards(prevGame);
+			//}
+			//else
+			//{
 				prepareOpponent();
-			}
+			//}
 
 			this.debug = debug;
 
