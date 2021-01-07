@@ -22,39 +22,34 @@ namespace SabberStoneBasicAI.AIAgents.Dog
 		private const double EPSILON = 0.05;
 		public static double ConstantForUCT = 0.0;
 		public static Socket NNSocket = null;
-		private static string server = "www.baidu.com";
-		private int port = 114514;
+		private int port = 2303;
 		private int[] features = new int[163];
 		private byte[] dataBuffer = new byte[163 * 4];
 		private byte[] receiveBuffer = new byte[4];
 
-		private const bool SOCKET_EVAL = true;
+		private const bool SOCKET_EVAL = false;
 
 		public override void InitializeAgent()
 		{
 			ConstantForUCT = 1.0 / Math.Sqrt(Math.Log(Dog.NUM_ITERATIONS));
 
-			IPHostEntry hostEntry = null;
+			//initializeSocket();
 
-			hostEntry = Dns.GetHostEntry(server);
+		}
 
-			foreach (IPAddress address in hostEntry.AddressList)
+		private void initializeSocket()
+		{
+			IPAddress address = new IPAddress(new byte[4] { 10, 11, 135, 182 });
+			IPEndPoint ipe = new IPEndPoint(address, port);
+			Socket tempSocket = new Socket(ipe.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
+
+			tempSocket.Connect(ipe);
+
+			if (tempSocket.Connected)
 			{
-				IPEndPoint ipe = new IPEndPoint(address, port);
-				Socket tempSocket = new Socket(ipe.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
-
-				tempSocket.Connect(ipe);
-
-				if (tempSocket.Connected)
-				{
-					NNSocket = tempSocket;
-					break;
-				} else
-				{
-					continue;
-				}
+				NNSocket = tempSocket;
 			}
-			if(NNSocket == null)
+			if (NNSocket == null)
 			{
 				Console.WriteLine("ERROR: Socket not connected!");
 			}
