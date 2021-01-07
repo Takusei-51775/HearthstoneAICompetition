@@ -10,6 +10,7 @@ using System.Collections.Generic;
 using SabberStoneCore.Model;
 using System.IO;
 using System.Text;
+using SabberStoneCore.Model.Zones;
 
 namespace SabberStoneBasicAI.PartialObservation
 {
@@ -29,6 +30,7 @@ namespace SabberStoneBasicAI.PartialObservation
 		private List<int> turnsRecords = new List<int>();
 
 		private Queue<List<double>> trainingData = new Queue<List<double>>();
+		private Queue<List<double>> tmpData = new Queue<List<double>>();
 
 		public POGameHandler(GameConfig gameConfig, AbstractAgent player1, AbstractAgent player2, bool setupHeroes = true, bool repeatDraws = false)
 		{
@@ -90,10 +92,7 @@ namespace SabberStoneBasicAI.PartialObservation
 					//Console.WriteLine("Turn " + game.Turn); 
 
 
-					if(game.Turn == 15)
-					{
-						OutputCurrentGameForTrainingData(game);
-					}
+					
 					//ShowLog(game, LogLevel.INFO);
 
 
@@ -126,6 +125,14 @@ namespace SabberStoneBasicAI.PartialObservation
 					if (playertask.PlayerTaskType == PlayerTaskType.END_TURN)
 						printGame = true;
 
+					if(playertask.PlayerTaskType == PlayerTaskType.END_TURN && game.CurrentPlayer == game.Player1)
+					{
+						if(game.Turn > new Random().Next(1, 20))
+						{
+							OutputCurrentGameForTrainingData(game);
+						}
+					}
+
 					game.Process(playertask);
 				}
 #if DEBUG
@@ -150,10 +157,37 @@ namespace SabberStoneBasicAI.PartialObservation
 			if (addToGameStats)
 				gameStats.addGame(game, watches);
 
+			List<double> features;
+
+			if (game.Player1.PlayState == PlayState.WON)
+				while (tmpData.Count > 0)
+				{
+					features = tmpData.Dequeue();
+					features.Add(1);
+					trainingData.Enqueue(features);
+				}
+			else if (game.Player2.PlayState == PlayState.WON)
+				while (tmpData.Count > 0)
+				{
+					features = tmpData.Dequeue();
+					features.Add(-1);
+					trainingData.Enqueue(features);
+				}
+			else
+				while (tmpData.Count > 0)
+				{
+					features = tmpData.Dequeue();
+					features.Add(-1);
+					trainingData.Enqueue(features);
+				}
+
+
 			player1.FinalizeGame();
 			player2.FinalizeGame();
 
 			turnsRecords.Add(numturns);
+
+			
 			//ShowLog(game, LogLevel.INFO);
 
 			return true;
@@ -240,10 +274,84 @@ namespace SabberStoneBasicAI.PartialObservation
 		public void OutputCurrentGameForTrainingData(Game game)
 		{
 			List<double> features = new List<double>();
+			HandZone Hand = game.CurrentPlayer.HandZone;
+			BoardZone BoardZone = game.CurrentPlayer.BoardZone;
+			BoardZone OpBoardZone = game.CurrentPlayer.Opponent.BoardZone;
+			Minion[] minions = BoardZone.GetAll();
 			features.Add(game.Turn);
+			features.Add(game.CurrentPlayer.HeroId);
 			features.Add(game.CurrentPlayer.Hero.Health);
+			features.Add(game.CurrentPlayer.BaseMana);
+			features.Add(game.CurrentPlayer.HandZone.Count);
+			features.Add(game.CurrentPlayer.DeckZone.Count);
+			features.Add(game.CurrentPlayer.BoardZone.Count);
+			for (int i = 0; i < game.CurrentPlayer.HandZone.Count; i++)
+			{
+				features.Add(game.CurrentPlayer.HandZone[i].Card.AssetId);
+			}
+			for (int i = 0; i < 10-game.CurrentPlayer.HandZone.Count; i++)
+			{
+				features.Add(0);
+			}
+			foreach (Minion minion in minions){
+				features.Add((double)minion.Card.AssetId);
+				features.Add((double)minion[GameTag.ATK]);
+				features.Add((double)minion[GameTag.HEALTH]);
+				features.Add((double)minion[GameTag.DAMAGE]);
+				features.Add((double)minion[GameTag.STEALTH]);
+				features.Add((double)minion[GameTag.IMMUNE]);
+				features.Add((double)minion[GameTag.TAUNT]);
+				features.Add((double)minion[GameTag.CANT_BE_TARGETED_BY_SPELLS]);
+				features.Add((double)minion[GameTag.NUM_ATTACKS_THIS_TURN]);
+				features.Add((double)minion.Card.AssetId);
+			}
+			for(int _ = 0;_<7-minions.Length;_++)
+			{
+				features.Add(0.0);
+				features.Add(0.0);
+				features.Add(0.0);
+				features.Add(0.0);
+				features.Add(0.0);
+				features.Add(0.0);
+				features.Add(0.0);
+				features.Add(0.0);
+				features.Add(0.0);
+				features.Add(0.0);
+			}
+			features.Add(game.CurrentOpponent.HeroId);
 			features.Add(game.CurrentOpponent.Hero.Health);
-			trainingData.Enqueue(features);
+			features.Add(game.CurrentOpponent.BaseMana);
+			features.Add(game.CurrentOpponent.HandZone.Count);
+			features.Add(game.CurrentOpponent.DeckZone.Count);
+			features.Add(game.CurrentOpponent.BoardZone.Count);
+			minions = OpBoardZone.GetAll();
+			foreach (Minion minion in minions)
+			{
+				features.Add((double)minion.Card.AssetId);
+				features.Add((double)minion[GameTag.ATK]);
+				features.Add((double)minion[GameTag.HEALTH]);
+				features.Add((double)minion[GameTag.DAMAGE]);
+				features.Add((double)minion[GameTag.STEALTH]);
+				features.Add((double)minion[GameTag.IMMUNE]);
+				features.Add((double)minion[GameTag.TAUNT]);
+				features.Add((double)minion[GameTag.CANT_BE_TARGETED_BY_SPELLS]);
+				features.Add((double)minion[GameTag.NUM_ATTACKS_THIS_TURN]);
+				features.Add((double)minion.Card.AssetId);
+			}
+			for (int _ = 0; _ < 7 - minions.Length; _++)
+			{
+				features.Add(0.0);
+				features.Add(0.0);
+				features.Add(0.0);
+				features.Add(0.0);
+				features.Add(0.0);
+				features.Add(0.0);
+				features.Add(0.0);
+				features.Add(0.0);
+				features.Add(0.0);
+				features.Add(0.0);
+			}
+			tmpData.Enqueue(features);
 		}
 
 		public void PrintTrainingData()
