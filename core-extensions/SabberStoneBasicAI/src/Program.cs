@@ -80,11 +80,13 @@ namespace SabberStoneBasicAI
 			{
 				//WARLOCK,WARRIOR
 				//ZooLock,AggroPirateWarrior
-				StartPlayer = 2,
-				Player1HeroClass = CardClass.WARLOCK,
-				Player2HeroClass = CardClass.WARLOCK,
-				Player1Deck = Decks.ZooLock,
-				Player2Deck = Decks.ZooLock,
+				StartPlayer = 1,
+				Player1HeroClass = CardClass.WARRIOR,
+				Player2HeroClass = CardClass.HUNTER,
+				//Player2HeroClass = CardClass.WARRIOR,
+				Player1Deck = Decks.AggroPirateWarrior,
+				Player2Deck = Decks.MidrangeSecretHunter,
+				//Player2Deck = Decks.AggroPirateWarrior,
 				FillDecks = false,
 				Shuffle = true,
 				Logging = true
@@ -93,9 +95,12 @@ namespace SabberStoneBasicAI
 			Console.WriteLine("Setup POGameHandler");
 			AbstractAgent player1 = new AIAgents.Dog.Dog();
 			//AbstractAgent player1 = new AIAgents.BetaStone.BetaStone();
+			//AbstractAgent player1 = new DynamicLookaheadAgent();
 			//AbstractAgent player1 = new GreedyAgent();
 			//AbstractAgent player2 = new AIAgents.BetaStone.BetaStone();
+			//AbstractAgent player2 = new AIAgents.Dog.Dog();
 			AbstractAgent player2 = new DynamicLookaheadAgent();
+			//AbstractAgent player2 = new GreedyAgent();
 			var gameHandler = new POGameHandler(gameConfig, player1, player2, repeatDraws: false);
 
 			Console.WriteLine("Simulate Games");

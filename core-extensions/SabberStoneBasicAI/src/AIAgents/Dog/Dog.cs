@@ -16,9 +16,9 @@ namespace SabberStoneBasicAI.AIAgents.Dog
 	{
 		public Random Rnd = new Random();
 		private Controller controller = null;
-		private string rolloutPolicy = "epsilon-greedy";
+		private string rolloutPolicy = "random";
 
-		public const int NUM_ITERATIONS = 500;
+		public const int NUM_ITERATIONS = 1000;
 		private const double EPSILON = 0.05;
 		public static double ConstantForUCT = 0.0;
 		public static Socket NNSocket = null;
