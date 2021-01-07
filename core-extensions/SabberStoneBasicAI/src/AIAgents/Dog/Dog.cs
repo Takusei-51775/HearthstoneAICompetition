@@ -23,17 +23,17 @@ namespace SabberStoneBasicAI.AIAgents.Dog
 		public static double ConstantForUCT = 0.0;
 		public static Socket NNSocket = null;
 		private int port = 2303;
-		private int[] features = new int[163];
-		private byte[] dataBuffer = new byte[163 * 4];
+		private int[] features = new int[169];
+		private byte[] dataBuffer = new byte[169 * 4];
 		private byte[] receiveBuffer = new byte[4];
 
-		private const bool SOCKET_EVAL = false;
+		private const bool SOCKET_EVAL = true;
 
 		public override void InitializeAgent()
 		{
 			ConstantForUCT = 1.0 / Math.Sqrt(Math.Log(Dog.NUM_ITERATIONS));
 
-			//initializeSocket();
+			initializeSocket();
 
 		}
 
@@ -303,7 +303,10 @@ namespace SabberStoneBasicAI.AIAgents.Dog
 			BoardZone OpBoardZone = game.CurrentPlayer.Opponent.BoardZone;
 			Minion[] minions = BoardZone.GetAll();
 			features[count++] = (game.Turn);
-			features[count++] = (game.CurrentPlayer.HeroId);
+			features[count++] = ((int)game.CurrentPlayer.HeroClass);
+			features[count++] = (game.CurrentPlayer.Hero.Weapon == null ? 0 : game.CurrentPlayer.Hero.Weapon.Card.AssetId);
+			features[count++] = (game.CurrentPlayer.Hero.Weapon == null ? 0 : game.CurrentPlayer.Hero.Weapon.AttackDamage);
+			features[count++] = (game.CurrentPlayer.Hero.Weapon == null ? 0 : game.CurrentPlayer.Hero.Weapon.Durability);
 			features[count++] = (game.CurrentPlayer.Hero.Health);
 			features[count++] = (game.CurrentPlayer.BaseMana);
 			features[count++] = (game.CurrentPlayer.HandZone.Count);
@@ -343,7 +346,10 @@ namespace SabberStoneBasicAI.AIAgents.Dog
 				features[count++] = (0);
 				features[count++] = (0);
 			}
-			features[count++] = (game.CurrentOpponent.HeroId);
+			features[count++] = ((int)game.CurrentOpponent.HeroClass);
+			features[count++] = (game.CurrentOpponent.Hero.Weapon == null ? 0 : game.CurrentOpponent.Hero.Weapon.Card.AssetId);
+			features[count++] = (game.CurrentOpponent.Hero.Weapon == null ? 0 : game.CurrentOpponent.Hero.Weapon.AttackDamage);
+			features[count++] = (game.CurrentOpponent.Hero.Weapon == null ? 0 : game.CurrentOpponent.Hero.Weapon.Durability);
 			features[count++] = (game.CurrentOpponent.Hero.Health);
 			features[count++] = (game.CurrentOpponent.BaseMana);
 			features[count++] = (game.CurrentOpponent.HandZone.Count);
@@ -378,7 +384,7 @@ namespace SabberStoneBasicAI.AIAgents.Dog
 			}
 			
 			// Safety check
-			if(count != 163)
+			if(count != 169)
 			{
 				Console.WriteLine("ERROR: Incorrect parameter size!");
 			}
