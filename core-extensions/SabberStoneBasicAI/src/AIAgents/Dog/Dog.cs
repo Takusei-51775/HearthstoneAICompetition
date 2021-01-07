@@ -96,6 +96,7 @@ namespace SabberStoneBasicAI.AIAgents.Dog
 		public double rollout(MCTSNode node)
 		{
 			MCTSNode currNode = node;
+			POGame currGame = node.State;
 			// Early stop if the only option is END_TURN
 			List<PlayerTask> options = currNode.State.CurrentPlayer.Options();
 			while(options.Count > 1)
@@ -119,7 +120,7 @@ namespace SabberStoneBasicAI.AIAgents.Dog
 							// rather, add it into next states.
 							nextStates.Add(currNode.State);
 							//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-							//currNode = nextStates.OrderBy(x => Evaluate(x)).Last();
+							currNode = nextStates.OrderBy(x => Evaluate(x)).Last();
 
 						}
 					}
